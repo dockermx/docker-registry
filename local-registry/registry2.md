@@ -63,3 +63,15 @@ $ sudo systemctl enable registry-container.service
 ```bash
 $ sudo systemctl start registry-container.service
 ```
+# ¿Estoy listo para producción con esto?
+No, antes de pasar este registro a producción se deben considerar algunos aspectos como:
+- Seguridad
+- Storage de regsitry
+- Segmento de registro (redes)
+- Configuración de registro en el daemon de Docker
+
+Para un número alto de usuarios considerar:
+- Alta disponibilidad
+- Balanceo de carga
+
+Sin embargo, este registro provicional y basico puede servir para implementar una solución productiva como la instalación de alguna aplicación o producto basado en containers que dependa de imagenes custom. Para el manejo y uso no concurrente de usuarios es ideal.

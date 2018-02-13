@@ -1,0 +1,104 @@
+sudo mkdir /app && cd /app
+
+sudo wget https://sonatype-download.global.ssl.fastly.net/nexus/3/nexus-3.8.0-02-unix.tar.gz
+
+sudo tar -xvf nexus-3.8.0-02-unix.tar.gz
+
+sudo mv nexus-3.8.0-02 nexus
+
+sudo adduser nexus
+
+sudo chown -R nexus:nexus /app/
+
+sudo vi /app/nexus/bin/nexus.rc  -> run as nexus user.
+
+sudo ln -s /app/nexus/bin/nexus /etc/init.d/nexus
+
+sudo chkconfig --add nexus
+
+sudo chkconfig --levels 345 nexus on
+
+sudo service nexus start
+
+Step 1: Generate a self-signed server certificate for Nexus using keytool
+
+First determine the host name and externally accessible IP address of Nexus that Docker will use. The host name and IP address will be embedded in the self-signed certificate so that host name certificate verification will not fail.
+
+On the Nexus host, go to <AppDir>/etc/ssl directory. Generate a public private key pair for Nexus to use for any HTTPS connector.
+
+
+export NEXUS_DOMAIN=registry.sentinel.la
+export NEXUS_IP_ADDRESS=159.89.250.64
+export SSL_PORT=8088
+
+sudo /usr/lib/jvm/jre/bin/keytool -genkeypair -keystore keystore.jks -storepass password -keypass password -alias jetty2 -keyalg RSA -keysize 2048 -validity 5000 -dname "CN=*.${NEXUS_DOMAIN}, OU=Example, O=Sonatype, L=Unspecified, ST=Unspecified, C=US" -ext "SAN=DNS:${NEXUS_DOMAIN},IP:${NEXUS_IP_ADDRESS}" -ext "BC=ca:true"
+
+sudo keytool -genkey -alias jetty -keyalg RSA -keypass changeit -storepass changeit -keystore keystore.jk
+
+sudo cp keystore.jks  /app/nexus/etc/ssl/
+
+sudo vi /app/nexus/etc/jetty/jetty-https.xml
+
+
+<New id="sslContextFactory" class="org.eclipse.jetty.util.ssl.SslContextFactory">
+    <Set name="KeyStorePath"><Property name="ssl.etc"/>/keystore.jks</Set> 
+    <Set name="KeyStorePassword">changeit</Set>
+    <Set name="KeyManagerPassword">changeit</Set>
+    <Set name="TrustStorePath"><Property name="ssl.etc"/>/keystore.jks</Set>
+    <Set name="TrustStorePassword">changeit</Set>
+    <Set name="EndpointIdentificationAlgorithm"></Set>
+    <Set name="NeedClientAuth"><Property name="jetty.ssl.needClientAuth" default="false"/></Set>
+    <Set name="WantClientAuth"><Property name="jetty.ssl.wantClientAuth" default="false"/></Set>
+    <Set name="ExcludeCipherSuites">
+      <Array type="String">
+        <Item>SSL_RSA_WITH_DES_CBC_SHA</Item>
+        <Item>SSL_DHE_RSA_WITH_DES_CBC_SHA</Item>
+        <Item>SSL_DHE_DSS_WITH_DES_CBC_SHA</Item>
+        <Item>SSL_RSA_EXPORT_WITH_RC4_40_MD5</Item>
+        <Item>SSL_RSA_EXPORT_WITH_DES40_CBC_SHA</Item>
+        <Item>SSL_DHE_RSA_EXPORT_WITH_DES40_CBC_SHA</Item>
+        <Item>SSL_DHE_DSS_EXPORT_WITH_DES40_CBC_SHA</Item>
+      </Array>
+    </Set>
+  </New>
+
+  https://help.sonatype.com/display/NXRM3/Configuring+SSL#ConfiguringSSL-HowtoEnabletheHTTPSConnector
+
+export NEXUS_DOMAIN=registry.sentinel.la
+export NEXUS_IP_ADDRESS=159.89.250.64
+export SSL_PORT=8088
+
+
+sudo /usr/lib/jvm/jre/bin/keytool -printcert -sslserver ${NEXUS_DOMAIN}:${SSL_PORT} -rfc
+
+
+[osadmin@meetup-docker ~]$ sudo /usr/lib/jvm/jre/bin/keytool -printcert -sslserver ${NEXUS_DOMAIN}:${SSL_PORT} -rfc
+-----BEGIN CERTIFICATE-----
+MIID0jCCArqgAwIBAgIEDs+6zjANBgkqhkiG9w0BAQsFADB/MQswCQYDVQQGEwJV
+UzEUMBIGA1UECBMLVW5zcGVjaWZpZWQxFDASBgNVBAcTC1Vuc3BlY2lmaWVkMREw
+DwYDVQQKEwhTb25hdHlwZTEQMA4GA1UECxMHRXhhbXBsZTEfMB0GA1UEAwwWKi5y
+ZWdpc3RyeS5zZW50aW5lbC5sYTAeFw0xODAyMTMyMTU2NTZaFw0zMTEwMjMyMTU2
+NTZaMH8xCzAJBgNVBAYTAlVTMRQwEgYDVQQIEwtVbnNwZWNpZmllZDEUMBIGA1UE
+BxMLVW5zcGVjaWZpZWQxETAPBgNVBAoTCFNvbmF0eXBlMRAwDgYDVQQLEwdFeGFt
+cGxlMR8wHQYDVQQDDBYqLnJlZ2lzdHJ5LnNlbnRpbmVsLmxhMIIBIjANBgkqhkiG
+9w0BAQEFAAOCAQ8AMIIBCgKCAQEAgBe/z4FN8x4SY5hPoK0n0yPOBUeF4yMgKpAs
+4mZ1Jiq7KGfA0QEoSkAnudCkxHJe7TwzUfp3AdrlSRtXN7jodFMfB0KAgcCY/ymB
+F9mHmzNxUGBhKHw2TJvGIMeaa4JsLdkATZPtchE1E27LE8AO2J+71dqqI91KT6zR
+OXTcZKjfZ9Ae4OwOS9iL7GsQAHLVtXFCWImnnsmAJUJJlKRTS55h4hWVjwBIj5KA
+UoF36BurTio5f4p/aRMfbkYgoG9F3oEQXafACGfSBRRbbggydof9bohBm9rSwqcw
+hQg84Mqjzu+v8HiZxeOOK3ZSOWPCGL/02ukTvdmJTkADZqfKMQIDAQABo1YwVDAM
+BgNVHRMEBTADAQH/MCUGA1UdEQQeMByCFHJlZ2lzdHJ5LnNlbnRpbmVsLmxhhwSf
+WfpAMB0GA1UdDgQWBBTCcCb/n8XbRdfEzO4deJHcrptVcjANBgkqhkiG9w0BAQsF
+AAOCAQEAa82bUOsHDPX5yqZWzoQSdakub6wBCWHZojtYlqntWGm7p7IoNVD2G1+i
+zzGyEfiMyvQJ8VXbJ6EqPvqBeTek1srkKqBWulRmj3EN063SggdodF63RCP6eyI4
+jREvdkJSmk0R5aAjVnc5yZhvxK2ZNsGc1qdZQJyQp1wHfV7epYTDscJO0fE0nQ/D
+pY+fbJu1ynS1z8XAew1njCOGox3+pBH3JGoMw7EuK3h1oR/AUMVxWRIVMT7CYezx
+1Mj6sm+Z/Z7tqrHdNf44z/DJ5Z0QiUqK55/4MzZL70pviPM1VMWLDmySYaUGAM29
+cJASWV2mztFBCNx7bBQHJoVRbcxZ1g==
+-----END CERTIFICATE-----
+
+
+sudo cp registry.sentinel.la.crt /usr/local/share/ca-certificates/registry.sentinel.la.crt
+
+sudo update-ca-certificates
+
